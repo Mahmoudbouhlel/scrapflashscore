@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import { CalendarDays, ClipboardList, Database, ExternalLink, Filter, Sparkles, Trophy } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 interface Candidate {
     matchId: string;
@@ -77,6 +77,13 @@ const formatDate = (value: string | null) => {
     const [year, month, day] = value.split('-');
     return year && month && day ? `${day}/${month}/${year}` : value;
 };
+
+const todayValue = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date());
+const defaultDate = () => (props.filters.dates.includes(todayValue()) ? todayValue() : 'all');
+
+onMounted(() => {
+    selectedDate.value = defaultDate();
+});
 
 const formatNumber = (value: number | null | undefined, digits = 1) => {
     if (value === null || value === undefined || Number.isNaN(value)) return '-';

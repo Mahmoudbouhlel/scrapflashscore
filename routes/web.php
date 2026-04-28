@@ -3,7 +3,10 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\BettingTipsController;
 use App\Http\Controllers\BetSlipGeneratorController;
+use App\Http\Controllers\BetslipHistoryController;
+use App\Http\Controllers\DailyBetslipController;
 use App\Http\Controllers\GoalPredictionsController;
+use App\Http\Controllers\HistoryDailyDController;
 use App\Http\Controllers\SoloPredictionsController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -23,6 +26,18 @@ Route::get('betting-tips', BettingTipsController::class)
 Route::get('betslip-generator', BetSlipGeneratorController::class)
     ->middleware(['auth', 'verified'])
     ->name('betslip-generator');
+
+Route::get('daily-betslip', DailyBetslipController::class)
+    ->middleware(['auth', 'verified'])
+    ->name('daily-betslip');
+
+Route::get('betslip-history', BetslipHistoryController::class)
+    ->middleware(['auth', 'verified'])
+    ->name('betslip-history');
+
+Route::get('history-daily-d', HistoryDailyDController::class)
+    ->middleware(['auth', 'verified'])
+    ->name('history-daily-d');
 
 Route::get('goal-predictions', GoalPredictionsController::class)
     ->middleware(['auth', 'verified'])

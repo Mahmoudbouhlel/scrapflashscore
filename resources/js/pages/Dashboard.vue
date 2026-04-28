@@ -2,22 +2,8 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
-import {
-    Activity,
-    AlertTriangle,
-    CalendarDays,
-    Database,
-    ExternalLink,
-    Eye,
-    ListFilter,
-    Search,
-    Sparkles,
-    Table2,
-    Timer,
-    Trophy,
-    X,
-} from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { Activity, CalendarDays, Database, ExternalLink, Eye, ListFilter, Search, Sparkles, Table2, Timer, Trophy, X } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 
 interface Summary {
     totalMatches: number;
@@ -169,6 +155,8 @@ interface PredictionRow {
     awayTeam: string;
     homeRank: number | null;
     awayRank: number | null;
+    homePlayed: number | null;
+    awayPlayed: number | null;
     homeForm: string[];
     awayForm: string[];
     matchDate: string | null;
@@ -210,8 +198,14 @@ const selectedDate = ref('all');
 const selectedStatus = ref('all');
 const requireForms = ref(false);
 const requireDominantRank = ref(false);
+const selectedMotivation = ref<'all' | 'title' | 'goodPlace' | 'survival'>('all');
+const minPlayed = ref<number | null>(null);
+const timeFrom = ref('');
+const timeTo = ref('');
 const activeView = ref<'fixtures' | 'predictions' | 'schema'>('fixtures');
 const sortBy = ref<'confidence' | 'kickoff' | 'league'>('confidence');
+const currentPage = ref(1);
+const pageSize = ref(25);
 const selectedMatch = ref<MatchCard | null>(null);
 const selectedPrediction = ref<PredictionRow | null>(null);
 
@@ -236,6 +230,13 @@ const formatDate = (value: string | null | undefined) => {
     const [year, month, day] = value.split('-');
     return year && month && day ? `${day}/${month}/${year}` : value;
 };
+
+const todayValue = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date());
+const defaultDate = () => (props.filters.dates.includes(todayValue()) ? todayValue() : 'all');
+
+onMounted(() => {
+    selectedDate.value = defaultDate();
+});
 
 const formatTimestamp = (value: string | null | undefined) => {
     if (!value) return 'No scrape yet';
@@ -262,6 +263,109 @@ const matchHasForms = (match: MatchCard) => match.homeTeam.form.length > 0 && ma
 const matchHasDominantRank = (match: MatchCard) => hasDominantRank(match.homeTeam.rank, match.awayTeam.rank);
 const predictionHasForms = (prediction: PredictionRow) => prediction.homeForm.length > 0 && prediction.awayForm.length > 0;
 const predictionHasDominantRank = (prediction: PredictionRow) => hasDominantRank(prediction.homeRank, prediction.awayRank);
+
+const meetsMinPlayed = (homePlayed: number | string | null | undefined, awayPlayed: number | string | null | undefined) => {
+    const minimum = safeNumber(minPlayed.value);
+    if (minimum === null || minimum <= 0) return true;
+
+    const home = safeNumber(homePlayed);
+    const away = safeNumber(awayPlayed);
+
+    return home !== null && away !== null && home >= minimum && away >= minimum;
+};
+
+const matchHasMinPlayed = (match: MatchCard) => meetsMinPlayed(match.homeTeam.played, match.awayTeam.played);
+const predictionHasMinPlayed = (prediction: PredictionRow) => meetsMinPlayed(prediction.homePlayed, prediction.awayPlayed);
+
+const timeToMinutes = (value: string | null | undefined) => {
+    if (!value) return null;
+
+    const [hours, minutes] = value.slice(0, 5).split(':').map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+
+    return hours * 60 + minutes;
+};
+
+const matchTimeInRange = (value: string | null | undefined) => {
+    if (!timeFrom.value && !timeTo.value) return true;
+
+    const matchMinutes = timeToMinutes(value);
+    if (matchMinutes === null) return false;
+
+    const fromMinutes = timeToMinutes(timeFrom.value);
+    const toMinutes = timeToMinutes(timeTo.value);
+
+    if (fromMinutes !== null && toMinutes !== null && fromMinutes > toMinutes) {
+        return matchMinutes >= fromMinutes || matchMinutes <= toMinutes;
+    }
+
+    if (fromMinutes !== null && matchMinutes < fromMinutes) return false;
+    if (toMinutes !== null && matchMinutes > toMinutes) return false;
+
+    return true;
+};
+
+const leagueKey = (country: string | null | undefined, league: string | null | undefined) => `${country ?? 'Unknown'}|${league ?? 'Unknown'}`;
+
+const maxRankByLeague = computed(() => {
+    const ranks: Record<string, number> = {};
+
+    props.allMatches.forEach((match) => {
+        const key = leagueKey(match.country, match.league);
+        const homeRank = safeNumber(match.homeTeam.rank);
+        const awayRank = safeNumber(match.awayTeam.rank);
+        const current = ranks[key] ?? 0;
+
+        ranks[key] = Math.max(current, homeRank ?? 0, awayRank ?? 0);
+    });
+
+    return ranks;
+});
+
+const rankMotivationForTeam = (rank: number | null, maxRank: number | null, motivation: 'title' | 'goodPlace' | 'survival') => {
+    if (rank === null) return false;
+    if (motivation === 'title') return rank <= 3;
+    if (motivation === 'goodPlace') return rank >= 4 && rank <= 8;
+    if (motivation === 'survival') return maxRank !== null && maxRank >= 8 && rank >= maxRank - 3;
+
+    return false;
+};
+
+const matchHasMotivation = (match: MatchCard) => {
+    if (selectedMotivation.value === 'all') return true;
+
+    const maxRank = maxRankByLeague.value[leagueKey(match.country, match.league)] ?? null;
+
+    return (
+        rankMotivationForTeam(safeNumber(match.homeTeam.rank), maxRank, selectedMotivation.value) ||
+        rankMotivationForTeam(safeNumber(match.awayTeam.rank), maxRank, selectedMotivation.value)
+    );
+};
+
+const predictionHasMotivation = (prediction: PredictionRow) => {
+    if (selectedMotivation.value === 'all') return true;
+
+    const maxRank = maxRankByLeague.value[leagueKey(prediction.country, prediction.league)] ?? null;
+
+    return (
+        rankMotivationForTeam(safeNumber(prediction.homeRank), maxRank, selectedMotivation.value) ||
+        rankMotivationForTeam(safeNumber(prediction.awayRank), maxRank, selectedMotivation.value)
+    );
+};
+
+const motivationLabel = (match: MatchCard) => {
+    const maxRank = maxRankByLeague.value[leagueKey(match.country, match.league)] ?? null;
+    const homeRank = safeNumber(match.homeTeam.rank);
+    const awayRank = safeNumber(match.awayTeam.rank);
+
+    if (rankMotivationForTeam(homeRank, maxRank, 'title') || rankMotivationForTeam(awayRank, maxRank, 'title')) return 'Needs win for #1/top race';
+    if (rankMotivationForTeam(homeRank, maxRank, 'survival') || rankMotivationForTeam(awayRank, maxRank, 'survival'))
+        return 'Needs win out of bottom';
+    if (rankMotivationForTeam(homeRank, maxRank, 'goodPlace') || rankMotivationForTeam(awayRank, maxRank, 'goodPlace'))
+        return 'Needs win for good place';
+
+    return 'Neutral table pressure';
+};
 
 const deriveProbabilities = (match: MatchCard): ProbabilitySet => {
     if (match.probabilities.home !== null || match.probabilities.draw !== null || match.probabilities.away !== null) {
@@ -316,6 +420,9 @@ const filteredMatches = computed(() => {
         if (selectedStatus.value !== 'all' && match.status !== selectedStatus.value) return false;
         if (requireForms.value && !matchHasForms(match)) return false;
         if (requireDominantRank.value && !matchHasDominantRank(match)) return false;
+        if (!matchHasMotivation(match)) return false;
+        if (!matchHasMinPlayed(match)) return false;
+        if (!matchTimeInRange(match.matchTime)) return false;
 
         if (!term) return true;
 
@@ -345,7 +452,10 @@ const filteredMatches = computed(() => {
     });
 });
 
-const visibleMatches = computed(() => filteredMatches.value.slice(0, 60));
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredMatches.value.length / pageSize.value)));
+const pageStart = computed(() => (currentPage.value - 1) * pageSize.value);
+const pageEnd = computed(() => Math.min(pageStart.value + pageSize.value, filteredMatches.value.length));
+const visibleMatches = computed(() => filteredMatches.value.slice(pageStart.value, pageEnd.value));
 
 const filteredPredictions = computed(() => {
     const term = search.value.trim().toLowerCase();
@@ -356,6 +466,9 @@ const filteredPredictions = computed(() => {
             if (selectedDate.value !== 'all' && prediction.matchDate !== selectedDate.value) return false;
             if (requireForms.value && !predictionHasForms(prediction)) return false;
             if (requireDominantRank.value && !predictionHasDominantRank(prediction)) return false;
+            if (!predictionHasMotivation(prediction)) return false;
+            if (!predictionHasMinPlayed(prediction)) return false;
+            if (!matchTimeInRange(prediction.matchTime)) return false;
             if (!term) return true;
 
             return [
@@ -403,12 +516,42 @@ const resetFilters = () => {
     search.value = '';
     selectedCountry.value = 'all';
     selectedLeague.value = 'all';
-    selectedDate.value = 'all';
+    selectedDate.value = defaultDate();
     selectedStatus.value = 'all';
     requireForms.value = false;
     requireDominantRank.value = false;
+    selectedMotivation.value = 'all';
+    minPlayed.value = null;
+    timeFrom.value = '';
+    timeTo.value = '';
     sortBy.value = 'confidence';
+    currentPage.value = 1;
 };
+
+watch(
+    [
+        search,
+        selectedCountry,
+        selectedLeague,
+        selectedDate,
+        selectedStatus,
+        requireForms,
+        requireDominantRank,
+        selectedMotivation,
+        minPlayed,
+        timeFrom,
+        timeTo,
+        sortBy,
+        pageSize,
+    ],
+    () => {
+        currentPage.value = 1;
+    },
+);
+
+watch(totalPages, () => {
+    if (currentPage.value > totalPages.value) currentPage.value = totalPages.value;
+});
 
 const formTone = (value: string | null | undefined) => {
     if (value === 'W') return 'bg-emerald-100 text-emerald-700 ring-emerald-200';
@@ -466,7 +609,7 @@ const outcomeTone = (value: string | null | undefined) => {
                     </div>
 
                     <div
-                        class="grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_180px_160px_160px_auto] xl:grid-cols-[minmax(240px,1fr)_160px_160px_140px_140px_130px_150px_auto]"
+                        class="grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_180px_160px_160px_auto] xl:grid-cols-[minmax(240px,1fr)_135px_135px_120px_120px_110px_130px_160px_90px_105px_105px_auto]"
                     >
                         <label class="relative">
                             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -522,6 +665,46 @@ const outcomeTone = (value: string | null | undefined) => {
                         >
                             <input v-model="requireDominantRank" type="checkbox" class="rounded border-slate-300 text-slate-950" />
                             Dominant rank
+                        </label>
+
+                        <select
+                            v-model="selectedMotivation"
+                            class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                        >
+                            <option value="all">All motivation</option>
+                            <option value="title">Need win for #1</option>
+                            <option value="goodPlace">Need win good place</option>
+                            <option value="survival">Need win out bottom</option>
+                        </select>
+
+                        <label class="relative">
+                            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">MP</span>
+                            <input
+                                v-model.number="minPlayed"
+                                type="number"
+                                min="0"
+                                step="1"
+                                class="h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none focus:border-slate-400"
+                                placeholder=">="
+                            />
+                        </label>
+
+                        <label class="relative">
+                            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">From</span>
+                            <input
+                                v-model="timeFrom"
+                                type="time"
+                                class="h-11 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-2 text-sm outline-none focus:border-slate-400"
+                            />
+                        </label>
+
+                        <label class="relative">
+                            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">To</span>
+                            <input
+                                v-model="timeTo"
+                                type="time"
+                                class="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-2 text-sm outline-none focus:border-slate-400"
+                            />
                         </label>
 
                         <button
@@ -611,6 +794,9 @@ const outcomeTone = (value: string | null | undefined) => {
                                                         <span class="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
                                                             Pts {{ formatNumber(match.homeTeam.points) }}
                                                         </span>
+                                                        <span class="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                                                            MP {{ formatNumber(match.homeTeam.played) }}
+                                                        </span>
                                                         <span
                                                             v-for="(form, index) in match.homeTeam.form.slice(-5)"
                                                             :key="`${match.matchId}-row-home-form-${index}`"
@@ -629,6 +815,9 @@ const outcomeTone = (value: string | null | undefined) => {
                                                         </span>
                                                         <span class="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
                                                             Pts {{ formatNumber(match.awayTeam.points) }}
+                                                        </span>
+                                                        <span class="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                                                            MP {{ formatNumber(match.awayTeam.played) }}
                                                         </span>
                                                         <span
                                                             v-for="(form, index) in match.awayTeam.form.slice(-5)"
@@ -649,6 +838,11 @@ const outcomeTone = (value: string | null | undefined) => {
                                                             :class="statusTone(match.status)"
                                                             >{{ match.status }}</span
                                                         >
+                                                        <span
+                                                            class="rounded-md bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-100"
+                                                        >
+                                                            {{ motivationLabel(match) }}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -752,6 +946,43 @@ const outcomeTone = (value: string | null | undefined) => {
                                     </tr>
                                 </tbody>
                             </table>
+
+                            <div
+                                class="flex min-w-[1280px] flex-col gap-3 border-t border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                                <p class="text-sm text-slate-500">
+                                    Showing {{ filteredMatches.length ? pageStart + 1 : 0 }}-{{ pageEnd }} of {{ filteredMatches.length }} matches
+                                </p>
+
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <select
+                                        v-model.number="pageSize"
+                                        class="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none"
+                                    >
+                                        <option :value="10">10 / page</option>
+                                        <option :value="25">25 / page</option>
+                                        <option :value="50">50 / page</option>
+                                        <option :value="100">100 / page</option>
+                                    </select>
+                                    <button
+                                        class="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                                        :disabled="currentPage === 1"
+                                        @click="currentPage = Math.max(1, currentPage - 1)"
+                                    >
+                                        Previous
+                                    </button>
+                                    <span class="rounded-md bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
+                                        Page {{ currentPage }} / {{ totalPages }}
+                                    </span>
+                                    <button
+                                        class="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                                        :disabled="currentPage === totalPages"
+                                        @click="currentPage = Math.min(totalPages, currentPage + 1)"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <div v-else-if="activeView === 'predictions'" class="overflow-x-auto">
@@ -912,30 +1143,6 @@ const outcomeTone = (value: string | null | undefined) => {
                                     </tr>
                                 </tbody>
                             </table>
-                        </div>
-                    </article>
-
-                    <article class="rounded-lg border border-slate-200 bg-white p-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Scraper</p>
-                                <h2 class="mt-1 text-xl font-semibold text-slate-950">Recent errors</h2>
-                            </div>
-                            <AlertTriangle class="h-5 w-5 text-rose-500" />
-                        </div>
-                        <div class="mt-4 space-y-3">
-                            <div
-                                v-for="(error, index) in scrapeErrors"
-                                :key="index"
-                                class="rounded-lg border border-rose-100 bg-rose-50 p-3 text-xs text-rose-900"
-                            >
-                                <p v-for="(value, key) in error" :key="key" class="break-words">
-                                    <span class="font-semibold">{{ key }}:</span> {{ value ?? '-' }}
-                                </p>
-                            </div>
-                            <p v-if="!scrapeErrors.length" class="rounded-lg bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
-                                No scrape errors stored.
-                            </p>
                         </div>
                     </article>
                 </section>

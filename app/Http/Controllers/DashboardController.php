@@ -420,6 +420,8 @@ class DashboardController extends Controller
                     'awayRank' => $awayStanding?->rank,
                     'homePoints' => $homeStanding?->points,
                     'awayPoints' => $awayStanding?->points,
+                    'homePlayed' => $homeStanding?->played ?? $match?->home_played,
+                    'awayPlayed' => $awayStanding?->played ?? $match?->away_played,
                     'homeForm' => $this->parseForm($homeStanding?->form),
                     'awayForm' => $this->parseForm($awayStanding?->form),
                     'status' => $match?->status ?? 'Unknown',

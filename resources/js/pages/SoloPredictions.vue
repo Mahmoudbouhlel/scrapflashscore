@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import { BarChart3, CheckCircle2, ExternalLink, ListFilter, Search, ShieldCheck, Sparkles, Target } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 interface SoloPrediction {
     idKey: string;
@@ -69,6 +69,13 @@ const formatDate = (value: string | null) => {
     return year && month && day ? `${day}/${month}/${year}` : value;
 };
 
+const todayValue = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date());
+const defaultDate = () => (props.filters.dates.includes(todayValue()) ? todayValue() : 'all');
+
+onMounted(() => {
+    selectedDate.value = defaultDate();
+});
+
 const formatNumber = (value: number | null | undefined, digits = 1) => {
     if (value === null || value === undefined || Number.isNaN(value)) return '-';
     return value.toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: digits });
@@ -127,7 +134,7 @@ const topRecommended = computed(() => filteredItems.value.filter((item) => item.
 
 const resetFilters = () => {
     search.value = '';
-    selectedDate.value = 'all';
+    selectedDate.value = defaultDate();
     selectedMarket.value = 'all';
     selectedAdvice.value = 'all';
     selectedModel.value = 'all';
@@ -149,13 +156,16 @@ const resetFilters = () => {
                 <div class="mx-auto max-w-[1600px] px-4 py-6 lg:px-8">
                     <div class="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                         <div>
-                            <div class="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                            <div
+                                class="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700"
+                            >
                                 <ShieldCheck class="h-3.5 w-3.5" />
                                 prediction_solo
                             </div>
                             <h1 class="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">Solo market predictions</h1>
                             <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                                Dedicated view for single-pick model output: home, away, draw or other solo markets with odds, implied probability, edge, confidence and rationale.
+                                Dedicated view for single-pick model output: home, away, draw or other solo markets with odds, implied probability,
+                                edge, confidence and rationale.
                             </p>
                         </div>
 
@@ -194,39 +204,59 @@ const resetFilters = () => {
                             />
                         </label>
 
-                        <select v-model="selectedDate" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400">
+                        <select
+                            v-model="selectedDate"
+                            class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                        >
                             <option value="all">All dates</option>
                             <option v-for="date in filters.dates" :key="date" :value="date">{{ formatDate(date) }}</option>
                         </select>
 
-                        <select v-model="selectedMarket" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400">
+                        <select
+                            v-model="selectedMarket"
+                            class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                        >
                             <option value="all">All markets</option>
                             <option v-for="market in filters.markets" :key="market" :value="market">{{ market }}</option>
                         </select>
 
-                        <select v-model="selectedAdvice" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400">
+                        <select
+                            v-model="selectedAdvice"
+                            class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                        >
                             <option value="all">All advice</option>
                             <option v-for="advice in filters.advice" :key="advice" :value="advice">{{ advice }}</option>
                         </select>
 
-                        <select v-model="selectedCountry" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400">
+                        <select
+                            v-model="selectedCountry"
+                            class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                        >
                             <option value="all">All countries</option>
                             <option v-for="country in filters.countries" :key="country" :value="country">{{ country }}</option>
                         </select>
 
-                        <select v-model="selectedLeague" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400">
+                        <select
+                            v-model="selectedLeague"
+                            class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                        >
                             <option value="all">All leagues</option>
                             <option v-for="league in filters.leagues" :key="league" :value="league">{{ league }}</option>
                         </select>
 
-                        <select v-model="selectedModel" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400">
+                        <select
+                            v-model="selectedModel"
+                            class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                        >
                             <option value="all">All models</option>
                             <option v-for="model in filters.models" :key="model" :value="model">{{ model }}</option>
                         </select>
                     </div>
 
                     <div class="mt-3 grid gap-3 md:grid-cols-[160px_1fr_1fr_1fr_auto]">
-                        <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700">
+                        <label
+                            class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700"
+                        >
                             <input v-model="onlyRecommended" type="checkbox" class="rounded border-slate-300 text-slate-950" />
                             Recommended
                         </label>
@@ -242,7 +272,10 @@ const resetFilters = () => {
                             Min odd {{ formatNumber(minOdd, 2) }}
                             <input v-model.number="minOdd" type="range" min="1" max="8" step="0.05" class="accent-slate-950" />
                         </label>
-                        <button class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100" @click="resetFilters">
+                        <button
+                            class="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                            @click="resetFilters"
+                        >
                             <ListFilter class="h-4 w-4" />
                             Reset
                         </button>
@@ -261,14 +294,27 @@ const resetFilters = () => {
                     </div>
 
                     <div v-if="topRecommended.length" class="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-6">
-                        <article v-for="item in topRecommended" :key="`top-${item.idKey}`" class="rounded-lg border border-white/10 bg-white/[0.06] p-4">
-                            <span class="rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset" :class="marketTone(item.soloMarket)">{{ item.soloMarket }}</span>
-                            <a :href="item.sourceMatchUrl ?? '#'" target="_blank" rel="noopener noreferrer" class="mt-4 block font-semibold leading-tight text-white hover:text-sky-200">
+                        <article
+                            v-for="item in topRecommended"
+                            :key="`top-${item.idKey}`"
+                            class="rounded-lg border border-white/10 bg-white/[0.06] p-4"
+                        >
+                            <span class="rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset" :class="marketTone(item.soloMarket)">{{
+                                item.soloMarket
+                            }}</span>
+                            <a
+                                :href="item.sourceMatchUrl ?? '#'"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="mt-4 block font-semibold leading-tight text-white hover:text-sky-200"
+                            >
                                 {{ item.fixtureLabel }}
                             </a>
                             <p class="mt-2 text-xs text-slate-300">{{ formatDate(item.matchDate) }} {{ item.matchTime?.slice(0, 5) ?? 'TBD' }}</p>
                             <div class="mt-4 flex items-center justify-between gap-3">
-                                <span class="rounded-md px-2.5 py-1.5 text-sm font-bold" :class="adviceTone(item.advice)">{{ item.advice ?? '-' }}</span>
+                                <span class="rounded-md px-2.5 py-1.5 text-sm font-bold" :class="adviceTone(item.advice)">{{
+                                    item.advice ?? '-'
+                                }}</span>
                                 <span class="text-sm font-semibold text-sky-200">{{ formatPercent(item.edge) }} edge</span>
                             </div>
                         </article>
@@ -288,12 +334,27 @@ const resetFilters = () => {
                             <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                                 <div class="min-w-0">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <span class="rounded-md px-2.5 py-1 text-xs font-semibold ring-1 ring-inset" :class="marketTone(item.soloMarket)">{{ item.soloMarket }}</span>
-                                        <span class="rounded-md px-2.5 py-1 text-xs font-semibold" :class="adviceTone(item.advice)">{{ item.advice ?? '-' }}</span>
-                                        <span v-if="item.recommended" class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Recommended</span>
+                                        <span
+                                            class="rounded-md px-2.5 py-1 text-xs font-semibold ring-1 ring-inset"
+                                            :class="marketTone(item.soloMarket)"
+                                            >{{ item.soloMarket }}</span
+                                        >
+                                        <span class="rounded-md px-2.5 py-1 text-xs font-semibold" :class="adviceTone(item.advice)">{{
+                                            item.advice ?? '-'
+                                        }}</span>
+                                        <span
+                                            v-if="item.recommended"
+                                            class="rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800"
+                                            >Recommended</span
+                                        >
                                     </div>
 
-                                    <a :href="item.sourceMatchUrl ?? '#'" target="_blank" rel="noopener noreferrer" class="mt-3 inline-flex items-center gap-2 text-lg font-semibold text-slate-950 hover:text-rose-700">
+                                    <a
+                                        :href="item.sourceMatchUrl ?? '#'"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="mt-3 inline-flex items-center gap-2 text-lg font-semibold text-slate-950 hover:text-rose-700"
+                                    >
                                         {{ item.fixtureLabel }}
                                         <ExternalLink class="h-4 w-4" />
                                     </a>
@@ -333,7 +394,9 @@ const resetFilters = () => {
 
                             <div class="mt-4 rounded-lg border border-slate-200 p-3">
                                 <p class="text-sm font-semibold text-slate-950">Rationale</p>
-                                <p class="mt-2 text-sm leading-6 text-slate-600">{{ item.rationale ?? item.featureSummary ?? 'No rationale stored.' }}</p>
+                                <p class="mt-2 text-sm leading-6 text-slate-600">
+                                    {{ item.rationale ?? item.featureSummary ?? 'No rationale stored.' }}
+                                </p>
                             </div>
                         </article>
 

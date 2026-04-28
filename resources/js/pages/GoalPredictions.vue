@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import { BarChart3, Brain, CheckCircle2, ExternalLink, Goal, ListFilter, Search, Target } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 interface GoalPrediction {
     idKey: string;
@@ -67,6 +67,19 @@ const formatNumber = (value: number | null | undefined, digits = 1) => {
     return value.toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: digits });
 };
 
+const formatDate = (value: string | null) => {
+    if (!value) return 'TBD';
+    const [year, month, day] = value.split('-');
+    return year && month && day ? `${day}/${month}/${year}` : value;
+};
+
+const todayValue = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos' }).format(new Date());
+const defaultDate = () => (props.filters.dates.includes(todayValue()) ? todayValue() : 'all');
+
+onMounted(() => {
+    selectedDate.value = defaultDate();
+});
+
 const formatPercent = (value: number | null | undefined) => (value === null || value === undefined ? '-' : `${formatNumber(value, 1)}%`);
 
 const formatTimestamp = (value: string | null) => {
@@ -115,7 +128,7 @@ const topRecommended = computed(() => filteredItems.value.filter((item) => item.
 
 const resetFilters = () => {
     search.value = '';
-    selectedDate.value = 'all';
+    selectedDate.value = defaultDate();
     selectedMarket.value = 'all';
     selectedAdvice.value = 'all';
     selectedModel.value = 'all';
@@ -171,7 +184,7 @@ const resetFilters = () => {
                         </div>
                     </div>
 
-                    <div class="mt-5 grid gap-3 xl:grid-cols-[minmax(260px,1fr)_160px_130px_180px_150px_150px_160px_auto]">
+                    <div class="mt-5 grid gap-3 xl:grid-cols-[minmax(260px,1fr)_140px_160px_130px_180px_150px_150px_160px_auto]">
                         <label class="relative">
                             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             <input
@@ -181,6 +194,14 @@ const resetFilters = () => {
                                 placeholder="Search fixture, market, rationale..."
                             />
                         </label>
+
+                        <select
+                            v-model="selectedDate"
+                            class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
+                        >
+                            <option value="all">All dates</option>
+                            <option v-for="date in filters.dates" :key="date" :value="date">{{ formatDate(date) }}</option>
+                        </select>
 
                         <select
                             v-model="selectedMarket"
@@ -309,7 +330,11 @@ const resetFilters = () => {
                                         {{ item.fixtureLabel }}
                                         <ExternalLink class="h-4 w-4" />
                                     </a>
-                                    <p class="mt-1 text-xs text-slate-500">{{ item.modelName }} / {{ formatTimestamp(item.generatedAt) }}</p>
+                                    <p class="mt-1 text-xs text-slate-500">
+                                        {{ item.country }} / {{ item.league }} / {{ formatDate(item.matchDate) }}
+                                        {{ item.matchTime?.slice(0, 5) ?? 'TBD' }} / {{ item.status }} / {{ item.modelName }} /
+                                        {{ formatTimestamp(item.generatedAt) }}
+                                    </p>
                                 </div>
 
                                 <div class="grid grid-cols-2 gap-2 text-sm md:grid-cols-5 xl:min-w-[620px]">
