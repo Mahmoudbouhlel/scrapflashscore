@@ -160,7 +160,7 @@ const resetFilters = () => {
                             </p>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3 xl:min-w-[640px] xl:grid-cols-4">
+                        <div class="grid gap-3 sm:grid-cols-2 xl:min-w-[640px] xl:grid-cols-4">
                             <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
                                 <Brain class="h-4 w-4 text-slate-500" />
                                 <p class="mt-3 text-2xl font-semibold">{{ summary.total }}</p>

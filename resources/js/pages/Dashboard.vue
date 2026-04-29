@@ -596,7 +596,7 @@ const outcomeTone = (value: string | null | undefined) => {
                             </p>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:min-w-[680px]">
+                        <div class="grid gap-3 sm:grid-cols-2 xl:min-w-[680px] xl:grid-cols-4">
                             <article v-for="card in summaryCards" :key="card.label" class="rounded-lg border border-slate-200 bg-slate-50 p-4">
                                 <div class="flex items-center justify-between gap-3">
                                     <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{{ card.label }}</p>

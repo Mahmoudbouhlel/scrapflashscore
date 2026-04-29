@@ -182,7 +182,7 @@ const resetFilters = () => {
                             </p>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3 xl:min-w-[760px] xl:grid-cols-5">
+                        <div class="grid gap-3 sm:grid-cols-2 xl:min-w-[760px] xl:grid-cols-5">
                             <article class="rounded-lg border border-slate-200 bg-slate-50 p-4">
                                 <TrendingUp class="h-4 w-4 text-slate-500" />
                                 <p class="mt-3 text-2xl font-semibold" :class="profitTone(visibleSummary.profit)">
